@@ -1,0 +1,110 @@
+# Verity CI.
+#
+# Two jobs, and the second is the interesting one.
+#
+# `check` is the ordinary gate: formatting, vet, and the full test suite,
+# including the import guard and the determinism test. It runs on three
+# operating systems because Verity's central claim is that a seed reproduces
+# anywhere, and a claim only tested on one platform is an assumption.
+#
+# `cross-machine` is the other half of milestone M1's exit criterion: the same
+# seed must produce a byte-identical trace *across two different machines*. Each
+# `check` job dumps the trace hash of a fixed sweep of seeds; this job downloads
+# all three and diffs them. A difference here means the simulator has picked up
+# a dependency on word size, map layout, floating-point behaviour, or path
+# separators — none of which any unit test in the repository would notice.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # gofmt is checked before anything else because it is the cheapest
+      # failure to fix and the noisiest to leave broken. `gofmt -l` prints the
+      # files that need formatting and exits zero either way, so the emptiness
+      # of its output is the assertion.
+      - name: gofmt
+        shell: bash
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "these files are not gofmt-clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      # -count=1 defeats the test cache. A cached pass tells you the code was
+      # green at some point, which is not the question CI is asking.
+      - name: go test
+        run: go test -count=1 ./...
+
+      # The race detector has nothing to find inside a node — they are
+      # single-threaded by invariant (INV-3) — but it has plenty to find in the
+      # sweep's worker pool, and later in the real runtime.
+      - name: go test -race
+        run: go test -count=1 -race ./...
+
+      - name: determinism sweep
+        shell: bash
+        run: go run ./cmd/veritysim -seeds 500
+
+      - name: record trace hashes
+        shell: bash
+        run: go run ./cmd/veritysim -seeds 200 -hashes > hashes-${{ matrix.os }}.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hashes-${{ matrix.os }}
+          path: hashes-${{ matrix.os }}.txt
+
+  cross-machine:
+    name: identical traces across machines
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: hashes-*
+          merge-multiple: true
+
+      - name: compare
+        shell: bash
+        run: |
+          ls -l hashes-*.txt
+          reference=hashes-ubuntu-latest.txt
+          status=0
+          for f in hashes-*.txt; do
+            if [ "$f" = "$reference" ]; then continue; fi
+            if diff -u "$reference" "$f"; then
+              echo "OK: $f matches $reference"
+            else
+              echo "MISMATCH: $f differs from $reference"
+              echo "A seed produced a different trace on a different machine."
+              echo "Replay it with: go run ./cmd/veritysim -seed <seed> -trace"
+              status=1
+            fi
+          done
+          exit $status

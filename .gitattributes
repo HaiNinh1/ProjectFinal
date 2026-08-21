@@ -1,0 +1,27 @@
+# Line endings are normalised to LF in the repository and in the working tree,
+# on every platform.
+#
+# This is not a style preference. Two things in Verity depend on it:
+#
+#   * `gofmt -l .` must print nothing (docs/SPEC.md §12, and the CI gate).
+#     gofmt insists on LF, so a Windows checkout with core.autocrlf=true lists
+#     every Go file in the repository as unformatted, and the project's own
+#     pre-commit check becomes noise that gets ignored.
+#
+#   * The golden trace in sim/testdata is compared byte for byte against a
+#     buffer the simulator wrote with "\n". If git rewrote that file's line
+#     endings on checkout, the comparison would fail on Windows and pass on
+#     Linux — a difference between machines, in the one test whose entire
+#     purpose is to prove there is no difference between machines.
+*               text=auto eol=lf
+
+*.go            text eol=lf
+*.md            text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.html          text eol=lf
+*.mod           text eol=lf
+*.sum           text eol=lf
+*.trace         text eol=lf
+.gitattributes  text eol=lf
+.gitignore      text eol=lf

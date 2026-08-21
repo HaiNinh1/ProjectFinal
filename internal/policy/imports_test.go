@@ -21,6 +21,10 @@ var pureNodePackages = []string{
 	"verity/raft",
 	"verity/kvsm",
 	"verity/shard",
+	// The echo node is a test fixture, but it is the node the determinism test
+	// actually drives, so it must obey the same rules as the real ones. A
+	// fixture that could read a clock would prove nothing about the harness.
+	"verity/internal/echo",
 }
 
 // bannedImports maps a forbidden direct import to the reason, which is printed

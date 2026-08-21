@@ -65,6 +65,10 @@ verity/
   store/         Real WAL + snapshot files.
   check/         Porcupine model, history recording, linearizability checking.
   bench/         Workload generator (YCSB-style) and measurement harness.
+  internal/frame/   Record framing (length | crc32 | payload), shared by the
+                    sim disk model and store's WAL. Imports node.
+  internal/echo/    Minimal node.Node used as the harness's fixture before
+                    Raft exists. Pure node package, guarded as one.
   internal/policy/  Machine-enforced invariants (import guard, and later trace diff).
   cmd/
     veritysim/   Run seeds under simulation. The primary development tool.

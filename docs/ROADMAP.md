@@ -24,17 +24,17 @@ first and build it properly.
 |---|---|---|
 | T1.1 | Go module, package skeleton, import guard test | `go test ./internal/policy` passes; guard skips packages not yet created ✅ |
 | T1.2 | `node` API: `Time`, `Duration`, IDs, events, actions, `Record`, `Node` | `go build ./node` clean; package imports nothing ✅ |
-| T1.3 | `prng`: splitmix64, no global state, explicit `Split(id)` for per-node streams | Unit test: same seed → same sequence; `Split` streams are independent and reproducible |
-| T1.4 | `sim` scheduler: min-heap keyed by `(Time, seq)`, virtual clock, run horizon | Unit test asserts strict `(Time, seq)` ordering including exact-tie cases (INV-7) |
-| T1.5 | `sim` network model: delay, jitter, bandwidth, drop, duplicate, directed partitions | Unit tests for each parameter; partition test proves an asymmetric partition blocks one direction only |
-| T1.6 | `sim` disk model: write/sync latency, unsynced tail lost on crash, torn last record | Unit test: crash without sync loses the tail; torn write is rejected by the CRC frame loader, not returned as data |
-| T1.7 | Record framing `length \| crc32 \| payload` shared by `sim` disk and `store` | Round-trip test; truncated and bit-flipped frames both rejected at the right offset |
-| T1.8 | Fault schedule generated from seed, with swarm profile selection (S2) | Same seed → same schedule; schedule is dumpable as text and re-loadable |
-| T1.9 | Trace recorder: one line per `Step`, rolling FNV-1a hash | Trace of a fixed scenario matches a golden file |
-| T1.10 | `echo` node implementing `node.Node`, running under `sim` | 3-node echo cluster, 100 client calls, all replied under drops and delays |
-| T1.11 | **Determinism test**: 100 seeds × 2 runs, compare hashes; on mismatch dump and diff both traces | `go test ./sim -run TestDeterminism` passes; deliberately introducing a `range` over a map makes it fail with a localised diff |
-| T1.12 | `cmd/veritysim`: `-seed` to replay one, `-seeds N` to sweep across cores | `go run ./cmd/veritysim -seed 0x1234` twice produces identical output |
-| T1.13 | CI: `gofmt -l`, `go vet`, `go test ./...` | Pipeline green on a clean checkout |
+| T1.3 | `prng`: splitmix64, no global state, explicit `Split(id)` for per-node streams | Unit test: same seed → same sequence; `Split` streams are independent and reproducible ✅ |
+| T1.4 | `sim` scheduler: min-heap keyed by `(Time, seq)`, virtual clock, run horizon | Unit test asserts strict `(Time, seq)` ordering including exact-tie cases (INV-7) ✅ |
+| T1.5 | `sim` network model: delay, jitter, bandwidth, drop, duplicate, directed partitions | Unit tests for each parameter; partition test proves an asymmetric partition blocks one direction only ✅ |
+| T1.6 | `sim` disk model: write/sync latency, unsynced tail lost on crash, torn last record | Unit test: crash without sync loses the tail; torn write is rejected by the CRC frame loader, not returned as data ✅ |
+| T1.7 | Record framing `length \| crc32 \| payload` shared by `sim` disk and `store` (lives in `internal/frame`) | Round-trip test; truncated and bit-flipped frames both rejected at the right offset ✅ |
+| T1.8 | Fault schedule generated from seed, with swarm profile selection (S2) | Same seed → same schedule; schedule is dumpable as text and re-loadable ✅ |
+| T1.9 | Trace recorder: one line per `Step`, rolling FNV-1a hash | Trace of a fixed scenario matches a golden file ✅ |
+| T1.10 | `echo` node implementing `node.Node`, running under `sim` (`internal/echo`) | 3-node echo cluster, 100 client calls, all replied under drops and delays ✅ |
+| T1.11 | **Determinism test**: 100 seeds × 2 runs, compare hashes; on mismatch dump and diff both traces | `go test ./sim -run TestDeterminism` passes; deliberately introducing a `range` over a map makes it fail with a localised diff ✅ (mutation performed and reverted; see STATE.md Q6) |
+| T1.12 | `cmd/veritysim`: `-seed` to replay one, `-seeds N` to sweep across cores | `go run ./cmd/veritysim -seed 0x1234` twice produces identical output ✅ |
+| T1.13 | CI: `gofmt -l`, `go vet`, `go test ./...`, `-race`, seed sweep, and a cross-machine trace-hash diff | Pipeline green on a clean checkout — ⏳ **written, not yet run** |
 
 ---
 

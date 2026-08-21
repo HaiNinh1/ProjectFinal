@@ -10,6 +10,10 @@
 # Raw experimental results are NOT ignored — they are deliverable D3.
 /traces/
 *.trace
+# ...except the golden traces, which are checked-in expectations, not output.
+# Without this exception the T1.9 golden-file test passes locally for whoever
+# generated the file and fails for everyone else, including CI.
+!sim/testdata/*.trace
 
 # OMC operational state. .omc/skills is the intentional committable exception.
 .omc/

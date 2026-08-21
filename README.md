@@ -68,7 +68,7 @@ RQ2 is the central study.
 
 ```
 node/     contract every replica implements; imports nothing
-prng/     deterministic PRNG
+prng/     deterministic PRNG (splitmix64)
 raft/     consensus core
 kvsm/     key-value state machine + session dedup
 shard/    shard controller and migration
@@ -77,8 +77,16 @@ sim/      deterministic runtime — imported only by cmd and tests
 runtime/  real runtime: goroutines, gRPC, real disk
 check/    Porcupine model and history recording
 bench/    workload generator
+internal/
+  frame/  record framing, shared by the sim disk and the real WAL
+  echo/   minimal node.Node used as the harness's fixture before Raft exists
+  policy/ machine-enforced invariants (the import guard)
 cmd/      veritysim, verityd, verityctl
 ```
+
+Packages not yet written are listed because the dependency direction is part of
+the design, not an outcome of it. The import guard already names `raft`, `kvsm`
+and `shard`, and skips them until they exist.
 
 ## Documentation
 
@@ -88,20 +96,46 @@ cmd/      veritysim, verityd, verityctl
 | [`docs/SPEC.md`](docs/SPEC.md) | Implementation contract — invariants, interfaces, protocols, the eleven consensus rules that are easy to get wrong |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | 53 tasks across seven milestones, each with a checkable completion criterion |
 | [`docs/STATE.md`](docs/STATE.md) | Current position, decisions taken, open questions |
+| [`docs/BUGS.md`](docs/BUGS.md) | Every bug found, with the seed that reproduces it |
 
 ## Build
 
 ```bash
-go test ./...                        # everything, including the invariant guards
-go test ./internal/policy -v         # determinism guards alone
-go run ./cmd/veritysim -seed 0x1234  # replay one seed
-go run ./cmd/veritysim -seeds 1000   # sweep across cores
+go test ./...                          # everything, including the invariant guards
+go test ./internal/policy -v           # determinism guards alone
+go test ./sim -run TestDeterminism     # the test the project rests on
+
+go run ./cmd/veritysim -seed 0x1234            # replay one seed
+go run ./cmd/veritysim -seed 0x1234 -trace     # ...and print every Step
+go run ./cmd/veritysim -seed 0x1234 -schedule  # ...and print its fault schedule
+go run ./cmd/veritysim -seeds 1000             # sweep across cores
+go run ./cmd/veritysim -profiles               # list the fault profiles
+
+# minimise a failing seed: dump its schedule, comment faults out, run it back
+go run ./cmd/veritysim -seed 0x1234 -schedule > sched.txt
+go run ./cmd/veritysim -schedule-file sched.txt
 ```
+
+`-seed` twice produces byte-identical output. That is the whole idea, and it is
+checkable in two seconds.
 
 ## Status
 
-**M1 — the harness, before the system.** The simulator is built before any
-consensus code exists, because retrofitting determinism onto a codebase already
-structured around goroutines and wall clocks is a rewrite, not a refactor.
+**M1 — the harness, before the system — is implemented.** The simulator is
+built before any consensus code exists, because retrofitting determinism onto a
+codebase already structured around goroutines and wall clocks is a rewrite, not
+a refactor.
 
-See [`docs/STATE.md`](docs/STATE.md) for the current task.
+What runs today: a seeded scheduler, network, and disk model; a fault schedule
+drawn from the seed and dumpable as editable text; a trace hashed per `Step`;
+and a three-node cluster of a real `node.Node` answering client calls under
+drops, delays, duplication, partitions, crashes and torn writes. One seed
+replayed a hundred times, and a thousand seeds replayed twice, all reproduce
+byte for byte.
+
+The remaining M1 criterion is the one a single machine cannot check: that a
+seed produces the same trace on a *different* machine. CI is written to prove
+it and has not yet run.
+
+See [`docs/STATE.md`](docs/STATE.md) for the current task and the open
+questions.
