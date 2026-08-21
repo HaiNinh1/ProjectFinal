@@ -39,7 +39,7 @@ Recorded so they are not re-litigated. Reopen one only with a reason.
 | D4 | Own `prng` package; `math/rand` banned outright | Removes the exception that would otherwise have to be carved into the import guard, and guarantees the generator's algorithm never changes underneath a recorded seed. |
 | D5 | Single-server membership change (Raft §4), not joint consensus | Materially simpler to get right, sufficient for what Verity needs. |
 | D6 | Fixed 1024 shards | Avoids dynamic shard splitting, which is a project of its own. |
-| D7 | Module path is the bare name `verity` | No repo URL committed to yet. Change to the real path at first publish; it is a mechanical rename. |
+| D7 | Module path is the bare name `verity` | Chosen before the repo existed. Now published at `github.com/HaiNinh1/ProjectFinal`, so this needs revisiting — see Q1. |
 | D8 | Determinism test built in month 1, before any consensus code | Retrofitting determinism is a rewrite, not a refactor. This is the single highest-leverage sequencing decision in the plan. |
 
 ---
@@ -50,7 +50,7 @@ Answer before the task that depends on each; none block current work.
 
 | # | Question | Needed by |
 |---|---|---|
-| Q1 | Repository host and final module path | T7.3 (publishing `sim`) |
+| Q1 | Module path. Repo is `github.com/HaiNinh1/ProjectFinal` (public) but the module is bare `verity` and the system is called Verity. Either rename the module to the repo path (imports become `github.com/HaiNinh1/ProjectFinal/node` — verbose but `go get`-able) or rename the repo to `verity` and use `github.com/HaiNinh1/verity`. The second is cleaner. Must be settled before T7.3 publishes `sim` standalone; it is a mechanical rename either way. | T7.3 |
 | Q2 | Which MIT 6.5840 suite revision to vendor as the external oracle, and how to record that it was not authored here | T2.8 |
 | Q3 | Benchmark hardware for RQ3 — one machine with containers, or cloud VMs | T6.6 |
 | Q4 | Whether S3 (TLA⁺ model of migration) is attempted; depends on M5 finishing on schedule | T6.10 |
