@@ -10,17 +10,19 @@ Last updated: 2026-08-21
 
 ## Position
 
-**Milestone:** M1 — the harness, before the system. All thirteen tasks are
-implemented and locally green.
+**Milestone:** M2 — consensus, part one. T2.1 is done; the `raft` package
+exists and holds terms, the log, the durable record codec, and vote
+persistence.
 
-**Next task:** T2.1 — Raft state, log storage, term/vote persistence (**R1**).
+**Next task:** T2.2 — leader election with randomised timeouts drawn from the
+injected `prng`.
 
-**One thing is outstanding before M1 can be called closed**, and it is not
-something this machine can settle: `.github/workflows/ci.yml` has never run.
-M1's exit criterion is a byte-identical trace *across two different machines*,
-and the cross-machine half is exactly what CI is there to prove. Push the
-branch, watch the `cross-machine` job go green, then move M1 to closed. Until
-then it is "done pending CI", which is not the same thing.
+**Still outstanding from M1**, and not something this machine can settle:
+`.github/workflows/ci.yml` has never run. M1's exit criterion is a
+byte-identical trace *across two different machines*, and the cross-machine
+half is exactly what CI is there to prove. Push the branch, watch the
+`cross-machine` job go green, then move M1 to closed. Until then it is "done
+pending CI", which is not the same thing.
 
 The single-machine half is settled: 100 runs of one seed and 1000 seeds twice
 each all reproduce byte for byte.
@@ -45,6 +47,8 @@ each all reproduce byte for byte.
 | T1.11 | **Determinism test** — 100 seeds × 2 runs, plus one seed × 100 runs; dumps and diffs both traces on mismatch | `go test ./sim -run TestDeterminism`. **The mutation check was performed**: commenting out the INV-6 sort in `echo.onTimerFired` makes it fail on the first seed with a three-line localised diff. Reverted afterwards |
 | T1.12 | `cmd/veritysim`: `-seed` to replay, `-seeds N` to sweep across cores, `-hashes`, `-trace`, `-schedule`, `-profiles` | `go run ./cmd/veritysim -seed 0x1234` twice → byte-identical output. `-seeds 1000` → every seed reproduced itself, all seven profiles exercised |
 | T1.13 | `.github/workflows/ci.yml`: gofmt, vet, test, `-race`, a 500-seed sweep, on Linux/macOS/Windows, plus a `cross-machine` job that diffs per-seed trace hashes between the three | **Written, never run.** See Position above |
+| T2.1 | `raft`: terms and roles, the replicated log with a sentinel ahead of it, the codec for all three durable record kinds, `Restore`, and vote persistence with the response gated behind `PersistDone` (**R1**). 984 lines of source, 2419 of tests | `go test ./raft` — 84 test functions, 130 cases with subtests. **Mutation-checked twice.** Returning the vote response in the same batch as its `Persist` (SPEC §3: ordering within a batch is not a durability guarantee) fails nine tests, the first on the very first granted vote. Removing the B2 staleness guard fails three more, including the randomised sweep |
+| — | The import guard rewritten to parse source rather than shell out to `go list`, after it was caught reporting a cached pass for a package that already existed | `go test ./internal/policy`. Verified by regression: with a throwaway `kvsm` importing `time`, the guard now fails *without* `-count=1`, where before it returned `(cached) PASS`. See D18 |
 
 ---
 
@@ -69,6 +73,9 @@ Recorded so they are not re-litigated. Reopen one only with a reason.
 | D13 | Timers are cancelled by a monotonic generation counter, never reset by a crash | A `TimerFired` is delivered only if its generation still matches. Resetting the counter on crash would let a fire scheduled *before* the crash match a timer armed *after* it — a bug that would appear only under crash-during-election seeds, which is the worst possible place to find one. |
 | D14 | The determinism check compares the reply sequence as well as the trace hash | A trace line carries action *kinds*, not destinations or payloads, so it cannot see every reordering. Comparing replies too costs nothing and closes the gap. See Q6. |
 | D15 | `sim.Config` accepts a `*Schedule` to run verbatim, and `veritysim` grows `-schedule-file` | T1.8 requires a schedule to be "dumpable as text and re-loadable", but until now nothing could *consume* a parsed schedule, so the round-trip test round-tripped into nothing. Seed minimisation (T6.1) is built entirely on this loop: dump a failing seed's schedule, comment faults out, run it again, see whether the failure survives. Verified end to end by hand. Supplying a schedule skips the fault stream's draws, which perturbs nothing — the fault stream is its own `Split`. |
+| D16 | `raft` uses pure-computation stdlib (`errors`, `fmt`, `sort`, `encoding/binary`) rather than importing only `verity/node` the way `internal/echo` does | SPEC §2's "Imports node, prng" lists *verity* packages, not stdlib — `internal/frame`'s entry reads "Imports node" while the package imports four stdlib packages. `internal/policy`'s denylist is the machine-enforced boundary and permits all four; none of them can read a clock, perform I/O, start a goroutine or draw randomness. Echo's zero-import rule was a fixture's self-imposed strictness, and hand-rolling insertion sorts through a consensus implementation would trade real correctness for an invariant that is not actually at stake. |
+| D17 | A replica keeps two hard states: what it believes (`n.hard`) and what it can prove (`persister.durable`) | R1 and INV-8 are both statements about the gap between the two, and a single field cannot express a gap. Making the distinction structural forces every response that depends on durability to be written as a deferred action, so forgetting to defer one becomes a visible shape in the code rather than an invisible ordering assumption. It is also what made B2 findable at all. |
+| D18 | The import guard parses package source with `go/parser` instead of running `go list` | Found the hard way. `go test`'s result cache invalidates on files the test process itself opens, tracked through the testlog hooks on `os.Open`/`os.Stat`/`os.ReadDir`; it cannot see what a subprocess reads. So once `raft/` existed, `go test ./internal/policy -v` printed `verity/raft: not created yet, skipping` followed by `PASS`, reported `(cached)` — for a package that by then existed and compiled. A guard that can silently not run is worse than no guard, because it still reports green, and this one is the mechanical half of INV-1…INV-5. Parsing the files directly puts every file the verdict depends on into the cache's dependency set. The comment on `directImports` records all of this, because the obvious "simplification" is to put `go list` straight back. |
 
 ---
 
@@ -98,12 +105,19 @@ Answer before the task that depends on each.
 
 ## Bugs found
 
-Full entries in `docs/BUGS.md`. One so far:
+Full entries in `docs/BUGS.md`. Two so far:
 
 - **B1** (2026-08-21, seed `0x1234`, `liveness`) — the echo node cleared the
   shared `"retry"` timer whenever *any* request completed, stranding every
   other in-flight request whose message had been dropped. Found by the first
   cluster-level test that ever ran, on its first execution. Fixed.
+- **B2** (2026-08-21, no seed, `safety`) — with two writes in flight at once, a
+  replica answered a vote request with a grant for a term it had already left
+  and could no longer prove. Harmless in itself, because the higher term blocks
+  any further vote in the older one, but harmless by a coincidence two rules
+  away from the one being relied on. Found by inspection while writing the R1
+  tests, before the code was committed; the randomised sweep reproduces it once
+  the guard is removed. Fixed.
 
 ---
 

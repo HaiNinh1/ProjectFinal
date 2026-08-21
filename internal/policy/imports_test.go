@@ -3,8 +3,12 @@
 package policy_test
 
 import (
-	"os/exec"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -86,19 +90,86 @@ func TestSimulatorIsNotImportedByProductionCode(t *testing.T) {
 	}
 }
 
-// directImports returns the non-test imports declared by pkg. The second
-// result is false when the package does not exist yet.
+// moduleRoot locates the directory containing go.mod by walking up from the
+// working directory using os.Stat, so the walk itself is a filesystem access
+// the test process performs directly (see directImports for why that
+// matters) rather than something buried in a subprocess.
+func moduleRoot(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatalf("could not find go.mod above %s", dir)
+		}
+		dir = parent
+	}
+}
+
+// directImports returns the sorted, deduplicated non-test imports declared by
+// pkg's .go files. The second result is false when the package does not
+// exist yet, or exists only as an empty directory with no non-test .go files
+// in it — an empty leftover directory is not a package.
+//
+// This parses source directly with go/parser instead of shelling out to
+// `go list`, and that is not a style choice, it is a fix for a real false
+// pass. go test's result cache invalidates based on which files the test
+// process itself opens, tracked via the testlog hooks on os.Open/os.Stat/
+// os.ReadDir. It has no visibility into what a subprocess reads. directImports
+// used to run `go list -f ... <pkg>` via os/exec, so when a brand-new package
+// appeared in the tree the cache had no idea the subprocess's answer had
+// changed, and kept reusing the old result. That happened for real: after
+// creating raft/, `go test ./internal/policy -v` printed
+// "verity/raft: not created yet, skipping" and PASS, reported (cached), even
+// though verity/raft existed and compiled by then. A guard that can silently
+// not run is worse than no guard, because it still reports green. Parsing the
+// files ourselves means every file this decision depends on is opened by the
+// test binary directly, so the cache invalidates whenever a package's
+// contents change. Do not "simplify" this back to go list.
 func directImports(t *testing.T, pkg string) ([]string, bool) {
 	t.Helper()
-	out, err := exec.Command("go", "list", "-f", "{{range .Imports}}{{.}}\n{{end}}", pkg).Output()
+	rel := strings.TrimPrefix(strings.TrimPrefix(pkg, "verity"), "/")
+	dir := filepath.Join(moduleRoot(t), filepath.FromSlash(rel))
+
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, false
 	}
+
+	fset := token.NewFileSet()
+	seen := map[string]bool{}
 	var imports []string
-	for _, line := range strings.Split(string(out), "\n") {
-		if line = strings.TrimSpace(line); line != "" {
-			imports = append(imports, line)
+	found := false
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
 		}
+		found = true
+		path := filepath.Join(dir, name)
+		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatalf("parsing %s: %v", path, err)
+		}
+		for _, spec := range file.Imports {
+			imp, err := strconv.Unquote(spec.Path.Value)
+			if err != nil {
+				t.Fatalf("parsing %s: unquoting import %s: %v", path, spec.Path.Value, err)
+			}
+			if !seen[imp] {
+				seen[imp] = true
+				imports = append(imports, imp)
+			}
+		}
+	}
+	if !found {
+		return nil, false
 	}
 	sort.Strings(imports)
 	return imports, true

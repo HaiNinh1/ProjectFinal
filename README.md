@@ -137,5 +137,12 @@ The remaining M1 criterion is the one a single machine cannot check: that a
 seed produces the same trace on a *different* machine. CI is written to prove
 it and has not yet run.
 
+**M2 has started.** `raft/` now holds terms and roles, the replicated log, the
+codec for the three durable record kinds, crash recovery, and vote persistence:
+a granted vote is written to disk and the response is returned only once that
+write is acknowledged (**R1**). Both rules added so far were checked by
+deliberately breaking them and watching the tests fail — which is how the one
+real bug of the task, [B2](docs/BUGS.md), was pinned down.
+
 See [`docs/STATE.md`](docs/STATE.md) for the current task and the open
 questions.

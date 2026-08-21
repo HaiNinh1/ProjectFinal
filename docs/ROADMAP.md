@@ -45,7 +45,7 @@ tests; 10³ simulated cluster-hours clean under crash and partition seeds.
 
 | ID | Task | Done when |
 |---|---|---|
-| T2.1 | Raft state, log storage, term/vote persistence (**R1**) | Unit tests; vote is durable before the response action is returned |
+| T2.1 | Raft state, log storage, term/vote persistence (**R1**) | Unit tests; vote is durable before the response action is returned ✅ |
 | T2.2 | Leader election with randomised timeouts from injected `prng` | Single leader elected under partition; no two leaders in one term, asserted every step |
 | T2.3 | Election restriction (**R3**) | Test: a candidate with a shorter/staler log cannot win |
 | T2.4 | Log replication, `AppendEntries` consistency check, conflict truncation (**R4**) | Divergent follower logs converge; committed entries are never truncated |

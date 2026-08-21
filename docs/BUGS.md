@@ -74,3 +74,83 @@ under simulation: the first run of the first cluster test. Verdict:
 **plausibly found by conventional testing, but easily missed**, and the failure
 mode — a silent stall under partial message loss — is one that hides
 particularly well in a real system, where it looks like an unlucky timeout.
+
+---
+
+## B2 — a vote answered after the node had already moved to a later term
+
+| | |
+|---|---|
+| **Found** | 2026-08-21 |
+| **Seed** | None. Found by inspection while writing the R1 tests for T2.1, before the code was committed. The randomised sweep in `TestNoGrantEverPrecedesItsWrite` reproduces it on seed `0xB0A710A5` once the guard is removed |
+| **Class** | `safety` |
+| **Found by** | Design review — reasoning about two writes being in flight at once |
+| **Component** | `raft` (`onPersistDone`) |
+| **Status** | Fixed |
+
+**Symptom.** A replica announced a granted vote for a term it had already left.
+The response carried `Term: 1, VoteGranted: true` at a moment when the node's
+durable hard state said term 4, so a restart taken immediately afterwards would
+have recovered no trace of the vote that had just been promised.
+
+**Root cause.** `onRequestVote` decides the answer, parks it, and writes; the
+answer is sent when the write lands. That is R1 working as intended. What the
+first version missed is that the node does not stand still in between. A second
+vote request — or any RPC response carrying a later term — can arrive while the
+first write is still in flight, step the node down into the new term, and issue
+a second write. `node.Persist` promises nothing about the order the two
+completions arrive in, and the simulator's disk flushes the entire unsynced
+tail on any sync, so both records land with the later one last. Replaying them
+gives the later term, as it should: a hard state supersedes every earlier one.
+
+The parked answer, however, was still the one decided in the older term, and
+`onPersistDone` sent it verbatim:
+
+```go
+case pendVoteResp:
+    return []node.Action{node.Send{To: pend.to, Msg: pend.resp}}
+```
+
+So the node vouched for a vote that no longer existed anywhere on disk.
+
+It is worth being precise about how bad this is, because the honest answer is
+"not very, and that is the problem". No double vote can actually follow from
+it. Having reached term 4, the node rejects every later request in term 1, and
+it granted only one term-1 vote before moving on. The bug is safe — but it is
+safe by a coincidence two rules away from the one being relied on, and R1
+exists exactly so that vote safety does not rest on that kind of reasoning. A
+later change that made a lower term reachable again, or that let `VotedFor`
+move within a term, would convert it into a real split-brain with nothing in
+the diff to suggest it.
+
+**Fix.** Compare the parked answer's term against the current one when the
+write lands, and if the node has moved on, replace it with a rejection carrying
+the current term. A rejection needs no durability behind it, and it is strictly
+more useful than the stale answer: it tells a superseded candidate to give up
+rather than leaving it to time out.
+
+```go
+resp := pend.resp
+if resp.Term != n.hard.Term {
+    resp = RequestVoteResp{Term: n.hard.Term, VoteGranted: false}
+}
+```
+
+Regression test: `TestLateWriteAnswersWithTheCurrentTermNotTheDecidedOne`.
+Reverting the guard fails it, `TestOlderCompletionDoesNotRegressTheDurableState`
+and the randomised sweep together.
+
+**Conventional-testing assessment.** Very unlikely to be found by conventional
+testing, and unlikely to be found by a simulator either without the specific
+assertion that catches it. The bug needs two writes in flight at once, which
+needs a vote request to arrive during the disk latency of a previous one, and
+it produces no crash, no error and no lost data — only a message that is
+misleading rather than wrong. Every liveness and safety property an ordinary
+integration test would check still holds. What caught it here was not a
+failing run but an invariant stated sharply enough to be checkable: *a granted
+vote must never leave the node unless the durable state already justifies it*,
+asserted after every step by the test harness rather than at the end of a
+scenario. Verdict: **found only by making the rule mechanical**, which is the
+argument for R1..R10 being numbered and individually asserted rather than
+reviewed. It is also a good candidate mutant for the RQ2 study, since it is a
+one-line deletion that no ordinary test suite notices.
