@@ -1,0 +1,979 @@
+<title>Verity Datastore</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..500&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+:root{
+  --ground:#EDF1F4;
+  --surface:#FFFFFF;
+  --sunken:#E1E7EC;
+  --ink:#0C2233;
+  --muted:#4C6274;
+  --faint:#7D8FA0;
+  --rule:#C6D2DB;
+  --rule-soft:#DDE5EB;
+  --accent:#0B6E75;
+  --accent-ink:#084C51;
+  --accent-soft:#DBECED;
+  --signal:#9E2A38;
+  --signal-soft:#F2DFE1;
+  --warn:#8A5A12;
+  --warn-soft:#F1E6D2;
+  --serif:"Newsreader",Georgia,"Times New Roman",serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0A1620;
+    --surface:#0F2231;
+    --sunken:#071119;
+    --ink:#DBE6EE;
+    --muted:#94A8B8;
+    --faint:#6B8091;
+    --rule:#22394C;
+    --rule-soft:#172937;
+    --accent:#4FC7CD;
+    --accent-ink:#93E4E8;
+    --accent-soft:#0D3239;
+    --signal:#E8848E;
+    --signal-soft:#3A1C21;
+    --warn:#D9A441;
+    --warn-soft:#33280F;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0A1620;
+  --surface:#0F2231;
+  --sunken:#071119;
+  --ink:#DBE6EE;
+  --muted:#94A8B8;
+  --faint:#6B8091;
+  --rule:#22394C;
+  --rule-soft:#172937;
+  --accent:#4FC7CD;
+  --accent-ink:#93E4E8;
+  --accent-soft:#0D3239;
+  --signal:#E8848E;
+  --signal-soft:#3A1C21;
+  --warn:#D9A441;
+  --warn-soft:#33280F;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion: no-preference){html{scroll-behavior:smooth}}
+
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:var(--serif);
+  font-size:17.5px;
+  line-height:1.62;
+  font-weight:380;
+  -webkit-font-smoothing:antialiased;
+}
+
+.wrap{
+  max-width:1180px;
+  margin:0 auto;
+  padding:clamp(1.5rem,4vw,4rem) clamp(1.1rem,4vw,2.5rem) 6rem;
+  display:grid;
+  gap:clamp(1.75rem,4vw,3.5rem);
+  grid-template-columns:1fr;
+}
+@media (min-width:1080px){
+  .wrap{grid-template-columns:186px minmax(0,1fr);align-items:start}
+}
+
+/* ── contents rail ───────────────────────────── */
+.toc{
+  font-family:var(--mono);
+  font-size:.7rem;
+  line-height:1.5;
+  border-top:2px solid var(--ink);
+  padding-top:.85rem;
+}
+@media (min-width:1080px){
+  .toc{position:sticky;top:2rem;max-height:calc(100vh - 4rem);overflow-y:auto}
+}
+.toc h2{
+  font-family:var(--mono);
+  font-size:.66rem;
+  text-transform:uppercase;
+  letter-spacing:.16em;
+  color:var(--faint);
+  margin:0 0 .9rem;
+  font-weight:500;
+}
+.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.5rem}
+.toc a{
+  color:var(--muted);
+  text-decoration:none;
+  display:grid;
+  grid-template-columns:1.9em 1fr;
+  gap:.2rem;
+  border-bottom:1px solid transparent;
+}
+.toc a:hover{color:var(--accent)}
+.toc a span{color:var(--faint)}
+.toc a:hover span{color:var(--accent)}
+
+/* ── masthead ────────────────────────────────── */
+.doc{min-width:0;display:flex;flex-direction:column;gap:clamp(2.5rem,5vw,4rem)}
+
+.masthead{border-bottom:1px solid var(--rule);padding-bottom:2rem}
+.eyebrow{
+  font-family:var(--mono);
+  font-size:.68rem;
+  text-transform:uppercase;
+  letter-spacing:.2em;
+  color:var(--accent);
+  margin:0 0 1.4rem;
+  font-weight:500;
+}
+h1{
+  font-family:var(--serif);
+  font-size:clamp(3rem,9vw,5.2rem);
+  font-weight:500;
+  line-height:.98;
+  letter-spacing:-.028em;
+  margin:0 0 .5rem;
+  text-wrap:balance;
+}
+.deck{
+  font-size:clamp(1.12rem,2.4vw,1.4rem);
+  line-height:1.42;
+  color:var(--muted);
+  font-weight:300;
+  max-width:34ch;
+  margin:0 0 2.4rem;
+  text-wrap:balance;
+}
+.meta{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(158px,1fr));
+  gap:1.1rem 1.6rem;
+  border-top:1px solid var(--rule-soft);
+  padding-top:1.4rem;
+}
+.meta div{display:flex;flex-direction:column;gap:.28rem}
+.meta dt{
+  font-family:var(--mono);
+  font-size:.63rem;
+  text-transform:uppercase;
+  letter-spacing:.14em;
+  color:var(--faint);
+}
+.meta dd{margin:0;font-family:var(--mono);font-size:.82rem;color:var(--ink)}
+
+/* ── sections ────────────────────────────────── */
+section{position:relative}
+h2{
+  font-family:var(--serif);
+  font-size:clamp(1.6rem,3.4vw,2.1rem);
+  font-weight:500;
+  letter-spacing:-.018em;
+  line-height:1.16;
+  margin:0 0 1.5rem;
+  padding-bottom:.7rem;
+  border-bottom:1px solid var(--rule);
+  text-wrap:balance;
+}
+h2 .num{
+  font-family:var(--mono);
+  font-size:.7rem;
+  font-weight:500;
+  color:var(--accent);
+  letter-spacing:.1em;
+  display:inline-block;
+  margin-right:.9rem;
+  vertical-align:.35em;
+}
+@media (min-width:1360px){
+  h2 .num{position:absolute;left:-4.1rem;margin:0;vertical-align:baseline;padding-top:.55rem}
+}
+h3{
+  font-family:var(--serif);
+  font-size:1.16rem;
+  font-weight:600;
+  letter-spacing:-.005em;
+  margin:2.4rem 0 .7rem;
+  color:var(--ink);
+}
+h3 .sub{font-family:var(--mono);font-size:.68rem;color:var(--accent);letter-spacing:.1em;margin-right:.7rem;font-weight:500}
+h4{
+  font-family:var(--mono);
+  font-size:.68rem;
+  text-transform:uppercase;
+  letter-spacing:.15em;
+  color:var(--faint);
+  font-weight:500;
+  margin:2rem 0 .7rem;
+}
+p{margin:0 0 1.05rem;max-width:70ch}
+p:last-child{margin-bottom:0}
+a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:2px}
+strong{font-weight:600;color:var(--ink)}
+em{font-style:italic}
+code,.m{
+  font-family:var(--mono);
+  font-size:.85em;
+  background:var(--sunken);
+  padding:.1em .38em;
+  border-radius:2px;
+  color:var(--accent-ink);
+}
+.lead{font-size:1.1rem;line-height:1.55;color:var(--muted);font-weight:300;max-width:62ch}
+
+ul.body,ol.body{max-width:70ch;margin:0 0 1.05rem;padding-left:1.15rem;display:flex;flex-direction:column;gap:.5rem}
+ul.body li::marker{color:var(--accent)}
+ol.body li::marker{color:var(--accent);font-family:var(--mono);font-size:.8em}
+
+/* ── id list (objectives, contributions) ─────── */
+.ids{display:flex;flex-direction:column;gap:0;margin:0}
+.ids > div{
+  display:grid;
+  grid-template-columns:3.4rem minmax(0,1fr);
+  gap:1rem;
+  padding:.95rem 0;
+  border-bottom:1px solid var(--rule-soft);
+  align-items:baseline;
+}
+.ids > div:first-child{border-top:1px solid var(--rule-soft)}
+.ids dt{
+  font-family:var(--mono);
+  font-size:.75rem;
+  font-weight:600;
+  color:var(--accent);
+  letter-spacing:.04em;
+}
+.ids dd{margin:0;max-width:64ch}
+
+/* ── callouts (fieldset style) ───────────────── */
+.callout{
+  position:relative;
+  border:1px solid var(--rule);
+  background:var(--surface);
+  padding:1.5rem 1.4rem 1.25rem;
+  margin:2rem 0;
+  max-width:72ch;
+}
+.callout-label{
+  position:absolute;
+  top:-.62em;
+  left:1.1rem;
+  background:var(--surface);
+  padding:0 .6rem;
+  font-family:var(--mono);
+  font-size:.63rem;
+  text-transform:uppercase;
+  letter-spacing:.15em;
+  color:var(--accent);
+  font-weight:500;
+}
+.callout.alert{border-color:var(--signal)}
+.callout.alert .callout-label{color:var(--signal)}
+.callout p{font-size:.98rem}
+
+/* ── tables ──────────────────────────────────── */
+.tablewrap{overflow-x:auto;margin:1.6rem 0;border-top:2px solid var(--ink);border-bottom:1px solid var(--rule)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:.9rem}
+thead th{
+  font-family:var(--mono);
+  font-size:.63rem;
+  text-transform:uppercase;
+  letter-spacing:.13em;
+  color:var(--faint);
+  font-weight:500;
+  text-align:left;
+  padding:.85rem .9rem;
+  border-bottom:1px solid var(--rule);
+  white-space:nowrap;
+}
+tbody td{
+  padding:.9rem .9rem;
+  border-bottom:1px solid var(--rule-soft);
+  vertical-align:top;
+  color:var(--muted);
+}
+tbody tr:last-child td{border-bottom:none}
+tbody th{
+  padding:.9rem .9rem;
+  border-bottom:1px solid var(--rule-soft);
+  vertical-align:top;
+  text-align:left;
+  font-family:var(--mono);
+  font-size:.76rem;
+  font-weight:500;
+  color:var(--ink);
+  white-space:nowrap;
+}
+tbody tr:last-child th{border-bottom:none}
+td.num,th.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+.chip{
+  font-family:var(--mono);
+  font-size:.62rem;
+  text-transform:uppercase;
+  letter-spacing:.1em;
+  padding:.2em .55em;
+  border-radius:2px;
+  white-space:nowrap;
+  background:var(--sunken);
+  color:var(--muted);
+}
+.chip.hi{background:var(--signal-soft);color:var(--signal)}
+.chip.md{background:var(--warn-soft);color:var(--warn)}
+.chip.lo{background:var(--accent-soft);color:var(--accent-ink)}
+
+/* ── non-goals ───────────────────────────────── */
+.nogoals{
+  list-style:none;
+  margin:1.4rem 0;
+  padding:0;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(268px,1fr));
+  gap:.1rem 2rem;
+}
+.nogoals li{
+  padding:.62rem 0 .62rem 1.5rem;
+  position:relative;
+  border-bottom:1px solid var(--rule-soft);
+  font-size:.94rem;
+  color:var(--muted);
+}
+.nogoals li::before{
+  content:"×";
+  position:absolute;
+  left:0;
+  top:.62rem;
+  font-family:var(--mono);
+  color:var(--signal);
+  font-size:.95rem;
+}
+
+/* ── diagrams ────────────────────────────────── */
+figure{margin:2.2rem 0;padding:0}
+.diagram{
+  width:100%;
+  height:auto;
+  display:block;
+  background:var(--surface);
+  border:1px solid var(--rule);
+}
+.diagram .bx{fill:var(--surface);stroke:var(--rule);stroke-width:1}
+.diagram .bx-sunk{fill:var(--sunken);stroke:var(--rule-soft);stroke-width:1}
+.diagram .bx-acc{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1}
+.diagram .frame{fill:none;stroke:var(--accent);stroke-width:1;stroke-dasharray:5 4;opacity:.65}
+.diagram .arrow{stroke:var(--faint);stroke-width:1.2;fill:none}
+.diagram .arrow-d{stroke:var(--accent);stroke-width:1.2;fill:none;stroke-dasharray:4 3}
+.diagram marker path{fill:var(--faint)}
+.diagram marker.acc path{fill:var(--accent)}
+.diagram text{font-family:var(--mono);fill:var(--ink)}
+.diagram .t-title{font-size:13px;font-weight:600}
+.diagram .t-lbl{font-size:11px;fill:var(--muted)}
+.diagram .t-sub{font-size:10px;fill:var(--faint)}
+.diagram .t-acc{font-size:10px;fill:var(--accent);letter-spacing:.08em}
+.diagram .t-lead{font-size:12px;font-weight:600;fill:var(--accent)}
+.diagram .t-onacc{fill:var(--accent-ink);font-size:11px;font-weight:500}
+figcaption{
+  font-family:var(--mono);
+  font-size:.7rem;
+  line-height:1.5;
+  color:var(--faint);
+  margin-top:.75rem;
+  max-width:74ch;
+}
+figcaption b{color:var(--muted);font-weight:500}
+
+/* ── research questions ──────────────────────── */
+.rq{
+  border-top:1px solid var(--rule);
+  padding:1.5rem 0 .3rem;
+}
+.rq:last-of-type{border-bottom:1px solid var(--rule);margin-bottom:1.5rem}
+.rq-head{display:flex;gap:.85rem;align-items:baseline;margin-bottom:.6rem;flex-wrap:wrap}
+.rq-id{
+  font-family:var(--mono);
+  font-size:.68rem;
+  font-weight:600;
+  letter-spacing:.1em;
+  color:var(--accent);
+  background:var(--accent-soft);
+  padding:.22em .5em;
+  border-radius:2px;
+}
+.rq-q{font-size:1.05rem;font-weight:500;color:var(--ink);max-width:56ch}
+.rq p{font-size:.95rem;color:var(--muted)}
+.metric{
+  font-family:var(--mono);
+  font-size:.78rem;
+  line-height:1.55;
+  color:var(--muted);
+  background:var(--sunken);
+  padding:.75rem .9rem;
+  margin:.9rem 0 0;
+  max-width:70ch;
+  border-left:2px solid var(--accent);
+}
+.metric b{font-weight:600;color:var(--accent-ink);letter-spacing:.06em;font-size:.72rem;text-transform:uppercase}
+
+/* ── refs ────────────────────────────────────── */
+.refs{list-style:none;margin:1.4rem 0 0;padding:0;display:flex;flex-direction:column;gap:.1rem;counter-reset:r}
+.refs li{
+  padding:.72rem 0 .72rem 2.4rem;
+  border-bottom:1px solid var(--rule-soft);
+  position:relative;
+  font-size:.92rem;
+  color:var(--muted);
+  max-width:76ch;
+}
+.refs li::before{
+  counter-increment:r;
+  content:"[" counter(r) "]";
+  position:absolute;left:0;top:.72rem;
+  font-family:var(--mono);font-size:.72rem;color:var(--accent);
+}
+.refs cite{font-style:italic;color:var(--ink)}
+
+/* ── sign-off ────────────────────────────────── */
+.signoff{
+  border-top:2px solid var(--ink);
+  padding-top:1.8rem;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+  gap:2.5rem;
+}
+.sig{display:flex;flex-direction:column;gap:.4rem}
+.sig .line{border-bottom:1px solid var(--rule);height:2.6rem}
+.sig .cap{
+  font-family:var(--mono);
+  font-size:.63rem;
+  text-transform:uppercase;
+  letter-spacing:.14em;
+  color:var(--faint);
+}
+
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
+@media print{
+  body{background:#fff;color:#000;font-size:11pt}
+  .toc{display:none}
+  .wrap{grid-template-columns:1fr;max-width:none;padding:0}
+  section{break-inside:auto}
+  h2{break-after:avoid}
+  .tablewrap,figure,.callout{break-inside:avoid}
+}
+</style>
+
+<div class="wrap">
+
+<aside class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#s1"><span>01</span>Abstract</a></li>
+    <li><a href="#s2"><span>02</span>Problem &amp; motivation</a></li>
+    <li><a href="#s3"><span>03</span>Objectives</a></li>
+    <li><a href="#s4"><span>04</span>Scope</a></li>
+    <li><a href="#s5"><span>05</span>Architecture</a></li>
+    <li><a href="#s6"><span>06</span>Technology</a></li>
+    <li><a href="#s7"><span>07</span>Evaluation</a></li>
+    <li><a href="#s8"><span>08</span>Timeline</a></li>
+    <li><a href="#s9"><span>09</span>Risk register</a></li>
+    <li><a href="#s10"><span>10</span>Deliverables</a></li>
+    <li><a href="#s11"><span>11</span>Reading list</a></li>
+  </ol>
+</aside>
+
+<main class="doc">
+
+<header class="masthead">
+  <p class="eyebrow">Final-year project proposal &nbsp;·&nbsp; Computer Science</p>
+  <h1>Verity</h1>
+  <p class="deck">A sharded, strongly-consistent key-value store whose correctness is measured rather than asserted.</p>
+  <dl class="meta">
+    <div><dt>Candidate</dt><dd>———</dd></div>
+    <div><dt>Supervisor</dt><dd>———</dd></div>
+    <div><dt>Duration</dt><dd>7 months</dd></div>
+    <div><dt>Period</dt><dd>Sep 2026 – Mar 2027</dd></div>
+    <div><dt>Field</dt><dd>Distributed systems</dd></div>
+    <div><dt>Language</dt><dd>Go 1.26</dd></div>
+    <div><dt>Team size</dt><dd>1 (solo)</dd></div>
+    <div><dt>Revision</dt><dd>Draft 1</dd></div>
+  </dl>
+</header>
+
+<!-- ─────────────────────────────────────────── -->
+<section id="s1">
+  <h2><span class="num">01</span>Abstract</h2>
+  <p class="lead">Verity is a sharded, linearizable, replicated key-value store written from first principles in Go. It has three layers: a complete Raft consensus implementation, a multi-group sharding layer with online shard migration, and — the distinguishing contribution — a deterministic simulation testing harness in which the entire cluster executes inside a single-threaded, seeded simulator with virtual time.</p>
+  <p>Inside the simulator, every source of nondeterminism is drawn from one 64-bit seed: message delay, drop, duplication and reordering; network partitions of arbitrary topology; node crashes and restarts; disk latency, torn writes, and data loss on crash-without-<code>fsync</code>; and clock skew. Because time is virtual, one simulated hour costs milliseconds of real CPU, and because everything is seeded, any failure the harness finds is reproducible from a single integer — forever, on any machine.</p>
+  <p>The project therefore inverts the usual emphasis. The datastore is the system under test; the testing methodology is the research artifact. Correctness is reported as a measurement — linearizability violations found by an external checker across hundreds of thousands of simulated cluster-hours — and the effectiveness of the methodology is itself measured, by a controlled bug-injection study comparing deterministic simulation against conventional testing at equal CPU cost.</p>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section id="s2">
+  <h2><span class="num">02</span>Problem statement and motivation</h2>
+
+  <h3>2.1&ensp;Distributed systems fail where tests do not look</h3>
+  <p>A replicated system is correct only if it behaves correctly in <em>every</em> interleaving of message ordering, partial failure, and timing. The defects that matter therefore live in rare schedules: a leader that is partitioned but does not yet know it; a follower whose disk lost the last un-<code>fsync</code>ed write; two configuration changes that overlap by one term. These are not found by unit tests, because a unit test fixes the schedule.</p>
+  <p>Conventional integration testing runs the real system, on a real network, in real time. That approach samples a vanishingly small fraction of the schedule space, and — critically — samples it <em>non-reproducibly</em>. A test that fails once in five hundred runs is, in practice, undebuggable: by the time the engineer looks, the schedule that produced it is gone. Most such failures are quietly re-run until green.</p>
+
+  <h3>2.2&ensp;Correctness is a global property</h3>
+  <p>Linearizability, the consistency model Verity targets, is defined over the <em>history</em> of a concurrent execution: every operation must appear to take effect atomically at some instant between its invocation and its response, consistent with real-time order. No node can check this from the inside — it is a property of the whole system's observable history, and deciding it is NP-complete in general. Correctness therefore has to be checked externally, over a recorded history, by a dedicated checker.</p>
+
+  <h3>2.3&ensp;What industry does, and what students do not</h3>
+  <p>Industrial practice has converged on two answers. The first is external black-box fault injection, popularised by Jepsen, which drives a real cluster while a separate process induces partitions and clock skew and then checks the resulting history. The second, far more powerful, is deterministic simulation: run the entire system in a single process, under a virtual clock, with every I/O and every random choice supplied by a seeded generator. FoundationDB pioneered the technique, TigerBeetle built its whole engineering culture on it, and Antithesis now sells it as a deterministic hypervisor.</p>
+  <p>Simulation is dramatically more effective and remains, outside a handful of teams, poorly understood. Student and small-team distributed systems are almost universally validated by ad-hoc testing and a hopeful demo. That gap is the opportunity this project takes.</p>
+
+  <div class="callout">
+    <span class="callout-label">Thesis in one sentence</span>
+    <p>A single developer, in seven months, can build a non-trivial sharded consensus system <em>and</em> produce stronger evidence of its correctness than conventional testing can supply — provided the simulator is built before the system, not after it.</p>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section id="s3">
+  <h2><span class="num">03</span>Objectives and claimed contributions</h2>
+
+  <h3>3.1&ensp;Primary objectives</h3>
+  <dl class="ids">
+    <div><dt>P1</dt><dd>Implement Raft from the specification, <em>including</em> the parts routinely omitted from teaching implementations: durable state, log compaction and snapshot transfer, single-server membership change, PreVote, and leader leases.</dd></div>
+    <div><dt>P2</dt><dd>Build a linearizable key-value service across multiple Raft groups, with a replicated shard controller, online shard migration under live write load, and exactly-once client semantics.</dd></div>
+    <div><dt>P3</dt><dd>Build a deterministic simulator with virtual time and seeded fault injection, under which the unmodified system runs, and in which every failure is replayable from a 64-bit seed.</dd></div>
+    <div><dt>P4</dt><dd>Evaluate empirically along three axes — correctness under fault, performance against a production baseline (etcd), and availability during failure and reconfiguration.</dd></div>
+  </dl>
+
+  <h3>3.2&ensp;Secondary objectives <span class="sub">(pursued if schedule allows)</span></h3>
+  <dl class="ids">
+    <div><dt>S1</dt><dd>Automatic minimisation of failing traces: on failure, replay the seed with faults progressively removed to produce the smallest reproducer.</dd></div>
+    <div><dt>S2</dt><dd>Swarm-style seed exploration, in which the fault <em>configuration</em> is itself randomised per seed, so that no single "average" fault mix masks a class of bug.</dd></div>
+    <div><dt>S3</dt><dd>A TLA<sup>+</sup> model of the shard-migration protocol, model-checked with TLC over small configurations, as a cross-check on the hand-written implementation.</dd></div>
+  </dl>
+
+  <h3>3.3&ensp;Claimed contributions</h3>
+  <p>What a reader or examiner should be able to take from the finished work:</p>
+  <dl class="ids">
+    <div><dt>C1</dt><dd>An open-source, simulation-tested Raft and multi-Raft implementation of a completeness rarely reached outside production codebases.</dd></div>
+    <div><dt>C2</dt><dd>A reusable deterministic simulation harness for Go distributed systems, published as a standalone package independent of Verity itself.</dd></div>
+    <div><dt>C3</dt><dd>A controlled empirical comparison of deterministic simulation against conventional testing, via systematic injection of known consensus bugs, reporting detection rate and time-to-first-failure at equal CPU cost. <strong>This is the study that makes the work a piece of research rather than an implementation exercise.</strong></dd></div>
+    <div><dt>C4</dt><dd>An empirical characterisation of leader-lease read safety under clock skew: the measured skew threshold at which lease-based reads begin to violate linearizability, and confirmation that ReadIndex-based reads do not.</dd></div>
+  </dl>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section id="s4">
+  <h2><span class="num">04</span>Scope and non-goals</h2>
+  <p>Bounding the work is as important as defining it. The following are deliberately and permanently excluded; several are named because they are the directions a reader is most likely to ask about.</p>
+  <ul class="nogoals">
+    <li>Byzantine fault tolerance — crash-recovery model only</li>
+    <li>Multi-key or cross-shard ACID transactions</li>
+    <li>SQL layer, secondary indexes, range scans across shards</li>
+    <li>WAN-optimised or leaderless consensus (EPaxos, Paxos variants)</li>
+    <li>Custom network transport or kernel bypass</li>
+    <li>Authentication, TLS, multi-tenancy, quota enforcement</li>
+    <li>Production operations tooling, dashboards, or a management UI</li>
+    <li>Machine-checked proof of the full system (S3 is a bounded model, not a proof)</li>
+  </ul>
+  <p>Cross-shard transactions are the most natural extension and will be discussed as future work, with the observation that Verity's shard-migration machinery already supplies most of what a two-phase commit coordinator would need.</p>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section id="s5">
+  <h2><span class="num">05</span>System architecture</h2>
+
+  <h3>5.1&ensp;Overview</h3>
+  <p>Verity is five components. A <strong>client library</strong> routes each request by key to the replica group that currently owns its shard, caching the shard map and retrying on redirection. A <strong>shard controller</strong> — itself a small Raft group — owns the authoritative mapping from shards to groups, versioned by a monotonic configuration number. Several <strong>replica groups</strong>, each a Raft group of three or five nodes, own disjoint subsets of shards and apply committed commands to a local state machine. A <strong>storage layer</strong> gives each node a write-ahead log and periodic snapshots. And the <strong>simulator</strong> encloses all of it, supplying time, network, disk, and randomness.</p>
+
+  <figure>
+    <svg class="diagram" viewBox="0 0 880 480" role="img" aria-label="Verity architecture: a client library and shard controller above three Raft replica groups, all enclosed by the deterministic simulator">
+      <defs>
+        <marker id="a1" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z"/></marker>
+        <marker id="a1s" viewBox="0 0 8 8" refX="1" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M8,0 L0,4 L8,8 z"/></marker>
+        <marker id="a1a" class="acc" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z"/></marker>
+      </defs>
+
+      <rect class="frame" x="8" y="8" width="864" height="464" rx="4"/>
+      <text class="t-acc" x="28" y="36">DETERMINISTIC SIMULATOR &#183; VIRTUAL CLOCK &#183; NETWORK MODEL &#183; DISK MODEL</text>
+      <rect class="bx-acc" x="676" y="20" width="176" height="24" rx="3"/>
+      <text class="t-onacc" x="764" y="36" text-anchor="middle">seed 0x8A3F21C4</text>
+
+      <!-- controller -->
+      <rect class="bx" x="28" y="66" width="214" height="50"/>
+      <text class="t-title" x="44" y="90">Shard controller</text>
+      <text class="t-sub" x="44" y="106">Raft(3) &#183; authoritative shard map</text>
+
+      <!-- client -->
+      <rect class="bx" x="320" y="66" width="280" height="50"/>
+      <text class="t-title" x="336" y="90">Client library</text>
+      <text class="t-sub" x="336" y="106">session id + seq &#183; exactly-once retry</text>
+
+      <line class="arrow" x1="248" y1="91" x2="314" y2="91" marker-end="url(#a1)" marker-start="url(#a1s)"/>
+      <text class="t-sub" x="281" y="84" text-anchor="middle">config N</text>
+
+      <!-- fan-out -->
+      <path class="arrow" d="M 440 122 L 440 152 L 148 152 L 148 169" marker-end="url(#a1)"/>
+      <path class="arrow" d="M 440 122 L 440 169" marker-end="url(#a1)"/>
+      <path class="arrow" d="M 440 122 L 440 152 L 732 152 L 732 169" marker-end="url(#a1)"/>
+
+      <!-- group A -->
+      <rect class="bx" x="28" y="175" width="240" height="180"/>
+      <text class="t-title" x="44" y="200">Group A</text>
+      <text class="t-sub" x="44" y="217">shards 0 &#8211; 341</text>
+      <rect class="bx-acc" x="44" y="228" width="208" height="24" rx="2"/>
+      <text class="t-onacc" x="56" y="244">node a1 &#183; leader</text>
+      <rect class="bx-sunk" x="44" y="256" width="208" height="24" rx="2"/>
+      <text class="t-lbl" x="56" y="272">node a2</text>
+      <rect class="bx-sunk" x="44" y="284" width="208" height="24" rx="2"/>
+      <text class="t-lbl" x="56" y="300">node a3</text>
+      <rect class="bx-sunk" x="44" y="316" width="208" height="24" rx="2"/>
+      <text class="t-sub" x="56" y="332">WAL + fsync &#183; snapshots</text>
+
+      <!-- group B -->
+      <rect class="bx" x="320" y="175" width="240" height="180"/>
+      <text class="t-title" x="336" y="200">Group B</text>
+      <text class="t-sub" x="336" y="217">shards 342 &#8211; 683</text>
+      <rect class="bx-sunk" x="336" y="228" width="208" height="24" rx="2"/>
+      <text class="t-lbl" x="348" y="244">node b1</text>
+      <rect class="bx-acc" x="336" y="256" width="208" height="24" rx="2"/>
+      <text class="t-onacc" x="348" y="272">node b2 &#183; leader</text>
+      <rect class="bx-sunk" x="336" y="284" width="208" height="24" rx="2"/>
+      <text class="t-lbl" x="348" y="300">node b3</text>
+      <rect class="bx-sunk" x="336" y="316" width="208" height="24" rx="2"/>
+      <text class="t-sub" x="348" y="332">WAL + fsync &#183; snapshots</text>
+
+      <!-- group C -->
+      <rect class="bx" x="612" y="175" width="240" height="180"/>
+      <text class="t-title" x="628" y="200">Group C</text>
+      <text class="t-sub" x="628" y="217">shards 684 &#8211; 1023</text>
+      <rect class="bx-sunk" x="628" y="228" width="208" height="24" rx="2"/>
+      <text class="t-lbl" x="640" y="244">node c1</text>
+      <rect class="bx-sunk" x="628" y="256" width="208" height="24" rx="2"/>
+      <text class="t-lbl" x="640" y="272">node c2</text>
+      <rect class="bx-acc" x="628" y="284" width="208" height="24" rx="2"/>
+      <text class="t-onacc" x="640" y="300">node c3 &#183; leader</text>
+      <rect class="bx-sunk" x="628" y="316" width="208" height="24" rx="2"/>
+      <text class="t-sub" x="640" y="332">WAL + fsync &#183; snapshots</text>
+
+      <!-- migration -->
+      <path class="arrow-d" d="M 148 359 C 148 412, 440 412, 440 361" marker-end="url(#a1a)"/>
+      <text class="t-acc" x="294" y="440" text-anchor="middle">ONLINE SHARD MIGRATION &#183; STATE + DEDUP TABLE</text>
+    </svg>
+    <figcaption><b>Figure 1.</b> Every component runs inside the simulator, including the client. Nothing in the system calls the wall clock, opens a socket, or touches a file directly — all four sources of nondeterminism arrive through injected interfaces, which the simulator replaces with seeded models.</figcaption>
+  </figure>
+
+  <h3>5.2&ensp;Layer one — the consensus core</h3>
+  <p>Raft is implemented to the specification and its dissertation extensions, not the abridged version. In addition to leader election, log replication, and durable term/vote/log state fsynced before any response, the implementation includes:</p>
+  <ul class="body">
+    <li><strong>PreVote.</strong> A node partitioned away and repeatedly timing out inflates its term; on rejoin it deposes a perfectly healthy leader. PreVote requires a candidate to win a straw poll before incrementing its term, removing the disruption.</li>
+    <li><strong>Term-based conflict backtracking.</strong> Rolling <code>nextIndex</code> back one entry at a time is <em>O(n)</em> round trips after a long divergence; the follower instead reports the first index of the conflicting term so the leader can skip a whole term per round trip.</li>
+    <li><strong>Batching and pipelining.</strong> Multiple client commands per <code>AppendEntries</code>, and multiple in-flight <code>AppendEntries</code> per follower, without waiting for acknowledgement. This is where most of the throughput lives.</li>
+    <li><strong>Snapshots and <code>InstallSnapshot</code>.</strong> Log compaction above a size threshold, plus transfer of a snapshot to a follower whose required entry has already been discarded.</li>
+    <li><strong>Single-server membership change.</strong> The one-at-a-time approach from Raft §4, chosen over joint consensus because it is materially simpler to get right and sufficient for the reconfiguration Verity needs.</li>
+    <li><strong>The Figure&nbsp;8 commit restriction.</strong> A leader may only mark an entry committed once it has replicated an entry <em>of its own term</em>; committing a replicated-but-earlier-term entry by counting replicas alone can be undone. This is the single most commonly mis-implemented rule in Raft, and the simulator will be pointed at it deliberately in the bug-injection study.</li>
+  </ul>
+
+  <h4>Linearizable reads without writing to the log</h4>
+  <p>A read served naively by the leader can return stale data, because the leader may have been deposed without knowing it. Appending every read to the log is correct but expensive. Verity implements both cheap alternatives, and this turns out to be experimentally interesting:</p>
+  <ul class="body">
+    <li><strong>ReadIndex.</strong> The leader records its current commit index, confirms leadership by a round of heartbeats to a quorum, waits for its state machine to apply up to that index, and serves the read. Costs one round trip; safe under any clock behaviour.</li>
+    <li><strong>Leader lease.</strong> The leader assumes it remains leader for a bounded interval after a successful heartbeat round and serves reads locally with no round trip. Faster — but safe <em>only</em> if clock drift between nodes stays inside an assumed bound.</li>
+  </ul>
+  <p>That second assumption is exactly the kind of thing a simulator can attack, and doing so is research question RQ5 in §7.</p>
+
+  <h3>5.3&ensp;Layer two — sharding and online migration</h3>
+  <p>The key space is divided into a fixed number of shards (1024) hashed from the key. The shard controller — a three-node Raft group of its own — holds a sequence of numbered configurations, each mapping shards to replica groups. Groups joining or leaving trigger a rebalance, which produces a new configuration and therefore a set of shards that must move.</p>
+  <p>Migration proceeds per shard: the source group commits a "freeze" entry through its own Raft log and stops serving the shard; it ships the shard's state <em>together with the client deduplication table for keys in that shard</em>; the destination group commits an "install" entry; the source commits a garbage-collection entry once installation is acknowledged. Every step goes through consensus, so a leader failure on either side mid-migration resumes rather than corrupts.</p>
+
+  <div class="callout alert">
+    <span class="callout-label">Subtle failure this design defends against</span>
+    <p>If the deduplication table does not move with the shard, exactly-once semantics silently break. A client whose request was applied by the source group, but whose response was lost, retries against the destination group — which has no record of it and applies it a second time. An increment becomes two increments. No test that omits migration-under-retry will ever see this, and no node observes anything anomalous. It is precisely the class of bug the simulator exists to find.</p>
+  </div>
+
+  <h3>5.4&ensp;Layer three — deterministic simulation</h3>
+  <p>The simulator replaces the runtime, not the system. Four rules make a run reproducible, and all four constrain the code from the first commit:</p>
+  <ul class="body">
+    <li><strong>No wall clock.</strong> Time is a counter advanced by the scheduler to the timestamp of the next event. There are no real timers and no sleeping; a simulated hour of an idle cluster costs almost nothing.</li>
+    <li><strong>No concurrent scheduling.</strong> Nodes are not goroutines. Each node is a state machine exposing <code>Step(event) []Action</code> — it consumes an event, mutates its state, and returns the messages and disk writes it wants performed. The simulator owns the single thread and decides what happens next.</li>
+    <li><strong>No real I/O.</strong> The network is an in-memory model with a delay distribution, drop and duplication rates, reordering, and an arbitrary — possibly asymmetric — partition topology. The disk is a model with write latency, explicit <code>fsync</code> semantics, torn writes, and loss of un-<code>fsync</code>ed data on simulated crash.</li>
+    <li><strong>One seed, one trace.</strong> Every random choice in the system and the harness comes from one seeded source. Same seed, same binary, same trace — byte for byte, on any machine.</li>
+  </ul>
+
+  <figure>
+    <svg class="diagram" viewBox="0 0 880 262" role="img" aria-label="The simulation loop: a seed drives a scheduler that steps the cluster, producing a history checked for linearizability; failures feed back as a replayable seed">
+      <defs>
+        <marker id="a2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z"/></marker>
+        <marker id="a2a" class="acc" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 z"/></marker>
+      </defs>
+
+      <rect class="bx-acc" x="32" y="40" width="144" height="76"/>
+      <text class="t-title" x="104" y="72" text-anchor="middle" fill="var(--accent-ink)">Seed</text>
+      <text class="t-onacc" x="104" y="92" text-anchor="middle">64-bit integer</text>
+
+      <rect class="bx" x="200" y="40" width="144" height="76"/>
+      <text class="t-title" x="272" y="68" text-anchor="middle">Scheduler</text>
+      <text class="t-sub" x="272" y="86" text-anchor="middle">virtual clock</text>
+      <text class="t-sub" x="272" y="100" text-anchor="middle">fault schedule</text>
+
+      <rect class="bx" x="368" y="40" width="144" height="76"/>
+      <text class="t-title" x="440" y="68" text-anchor="middle">Cluster</text>
+      <text class="t-sub" x="440" y="86" text-anchor="middle">Step(evt)</text>
+      <text class="t-sub" x="440" y="100" text-anchor="middle">&#8594; []Action</text>
+
+      <rect class="bx" x="536" y="40" width="144" height="76"/>
+      <text class="t-title" x="608" y="68" text-anchor="middle">History</text>
+      <text class="t-sub" x="608" y="86" text-anchor="middle">invoke / respond</text>
+      <text class="t-sub" x="608" y="100" text-anchor="middle">with real-time order</text>
+
+      <rect class="bx" x="704" y="40" width="144" height="76"/>
+      <text class="t-title" x="776" y="68" text-anchor="middle">Checker</text>
+      <text class="t-sub" x="776" y="86" text-anchor="middle">Porcupine</text>
+      <text class="t-sub" x="776" y="100" text-anchor="middle">linearizable?</text>
+
+      <line class="arrow" x1="176" y1="78" x2="194" y2="78" marker-end="url(#a2)"/>
+      <line class="arrow" x1="344" y1="78" x2="362" y2="78" marker-end="url(#a2)"/>
+      <line class="arrow" x1="512" y1="78" x2="530" y2="78" marker-end="url(#a2)"/>
+      <line class="arrow" x1="680" y1="78" x2="698" y2="78" marker-end="url(#a2)"/>
+
+      <path class="arrow" d="M 750 118 L 750 138 L 672 138 L 672 152" marker-end="url(#a2)"/>
+      <path class="arrow" d="M 802 118 L 802 138 L 796 138 L 796 152" marker-end="url(#a2)"/>
+
+      <rect class="bx-sunk" x="608" y="154" width="128" height="26" rx="2"/>
+      <text class="t-lbl" x="672" y="171" text-anchor="middle">PASS &#183; next seed</text>
+      <rect class="bx-acc" x="744" y="154" width="104" height="26" rx="2" stroke="var(--signal)"/>
+      <text class="t-onacc" x="796" y="171" text-anchor="middle" fill="var(--signal)">FAIL</text>
+
+      <path class="arrow-d" d="M 796 184 C 780 232, 400 240, 140 240 C 116 240, 104 228, 104 206 L 104 122" marker-end="url(#a2a)"/>
+      <rect x="322" y="226" width="248" height="18" fill="var(--surface)"/>
+      <text class="t-acc" x="446" y="240" text-anchor="middle">MINIMISE &#8594; REPLAY BIT-IDENTICAL</text>
+    </svg>
+    <figcaption><b>Figure 2.</b> The loop runs unattended and is embarrassingly parallel across seeds. A single laptop core sustains roughly 10<sup>4</sup> simulated cluster-hours overnight; a failing seed reproduces in seconds and reproduces <em>identically</em>, which is what makes a distributed-systems bug debuggable at all.</figcaption>
+  </figure>
+
+  <div class="callout">
+    <span class="callout-label">The one decision that cannot be deferred</span>
+    <p>Verity must be written simulation-first. Time, network, disk, and randomness pass through injected interfaces from the very first commit, and the harness is built in month one — before any consensus code exists. Retrofitting determinism onto a codebase already structured around goroutines, channels, and <code>time.Now()</code> is not a refactor; it is a rewrite. Every schedule risk in §9 flows from this decision being taken correctly at the start.</p>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section id="s6">
+  <h2><span class="num">06</span>Technology and implementation approach</h2>
+
+  <h3>6.1&ensp;Language</h3>
+  <p><strong>Go 1.26.</strong> The choice is driven by the simulator, not by preference. The <code>Step(event) []Action</code> architecture that determinism demands is the same structure etcd's <code>raft</code> library already uses, so there is a high-quality reference for the shape of the code. Porcupine, the linearizability checker, is a Go library and integrates directly. etcd itself is written in Go, which makes the performance comparison in RQ3 an honest like-for-like rather than a language benchmark. And the toolchain supplies race detection, coverage-guided fuzzing, and profiling without third-party infrastructure.</p>
+  <p>Rust was considered and rejected: the borrow checker fights the shared-mutable shape of a Raft node hard enough to cost weeks that this schedule does not have, and no part of the project benefits from what that cost buys.</p>
+
+  <h3>6.2&ensp;Supporting components</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Component</th><th>Choice</th><th>Rationale</th></tr></thead>
+      <tbody>
+        <tr><th>Linearizability checker</th><td>Porcupine, with a KV model</td><td>External oracle, not written by the candidate. Reports a violating history, not just a verdict.</td></tr>
+        <tr><th>Independent test suite</th><td>MIT 6.5840 adversarial suite</td><td>A demanding test set the candidate did not author. Used strictly as an oracle; the contribution is layers two and three.</td></tr>
+        <tr><th>Real-network transport</th><td>gRPC behind an interface</td><td>Swapped for the simulated network by dependency injection; the system code does not know which it has.</td></tr>
+        <tr><th>Performance baseline</th><td>etcd v3</td><td>Same language, same consensus algorithm, production-hardened. Comparable features disabled and documented.</td></tr>
+        <tr><th>Real-network faults</th><td><code>tc netem</code> + containers</td><td>Validates that simulated behaviour matches reality on a genuine 5-node deployment.</td></tr>
+        <tr><th>Workload generator</th><td>YCSB-style, purpose-built</td><td>Records the history for the checker as it drives load; published with the source.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>6.3&ensp;Determinism hygiene</h3>
+  <p>Determinism is fragile and fails silently. Three practices defend it, enforced in continuous integration from month one: every seed is executed twice and the resulting event traces diffed; iteration over Go maps is banned on any deterministic path in favour of sorted key order, because Go deliberately randomises map iteration; and <code>time.Now()</code>, <code>math/rand</code>'s global source, and direct filesystem and network calls are forbidden outside the injected interfaces, checked by a custom lint rule.</p>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section id="s7">
+  <h2><span class="num">07</span>Evaluation methodology</h2>
+  <p class="lead">Five research questions, each with a stated metric and a stated success criterion. Every figure in the thesis is regenerated from raw data by a script committed alongside it; every experiment is repeated at least three times and reported with variance, not means alone.</p>
+
+  <div class="rq">
+    <div class="rq-head"><span class="rq-id">RQ1</span><span class="rq-q">Is Verity linearizable under fault?</span></div>
+    <p>The system is driven by a concurrent workload while the simulator injects the full fault catalogue. Every resulting history is submitted to Porcupine. Separately, the implementation is run against the independent 6.5840 suite, and the real five-node deployment is subjected to <code>tc netem</code> partitions.</p>
+    <p class="metric"><b>Metric</b><br>Linearizability violations per 10<sup>3</sup> simulated cluster-hours, broken down by fault class.<br><b>Success</b><br>&#8805; 10<sup>5</sup> simulated cluster-hours with zero unresolved violations at submission; independent suite passing; every violation found during development documented in the bug catalogue with its seed.</p>
+  </div>
+
+  <div class="rq">
+    <div class="rq-head"><span class="rq-id">RQ2</span><span class="rq-q">Does deterministic simulation find bugs that conventional testing misses?</span></div>
+    <p>The central study. A catalogue of known consensus defects is injected one at a time into an otherwise-correct build — omitting the Figure&nbsp;8 commit restriction; failing to persist <code>votedFor</code> before responding; acknowledging a write before <code>fsync</code>; serving a shard under a stale configuration; migrating a shard without its deduplication table. Each mutant is given to both regimes at <em>equal CPU cost</em>: the deterministic harness, and a conventional suite of unit tests plus real-network stress runs.</p>
+    <p>The second half of the study is observational: every genuine bug found during development is recorded, and the conventional regime is afterwards given equal budget to reproduce it.</p>
+    <p class="metric"><b>Metric</b><br>Detection rate (mutants caught &#247; mutants injected) and time-to-first-failure, in CPU-seconds, per regime.<br><b>Success</b><br>A statistically defensible difference in either metric, reported honestly in whichever direction it falls.</p>
+  </div>
+
+  <div class="rq">
+    <div class="rq-head"><span class="rq-id">RQ3</span><span class="rq-q">What does strong consistency cost?</span></div>
+    <p>Throughput and latency against etcd v3 on identical hardware, at cluster sizes three and five, under YCSB workloads A (update-heavy), B (read-heavy), and C (read-only), across value sizes from 64&nbsp;B to 64&nbsp;KB. Verity is additionally measured with batching and pipelining disabled, and across all three read strategies, to attribute cost to specific mechanisms rather than reporting one aggregate number.</p>
+    <p class="metric"><b>Metric</b><br>Operations per second; p50 / p99 / p99.9 latency; CPU and fsync counts per operation.<br><b>Success</b><br>Within one order of magnitude of etcd, with every gap attributed to a named, understood mechanism. Beating etcd is not an objective; explaining the difference is.</p>
+  </div>
+
+  <div class="rq">
+    <div class="rq-head"><span class="rq-id">RQ4</span><span class="rq-q">How available is the system during failure and reconfiguration?</span></div>
+    <p>At least 500 leader kills are injected at uniformly random points, and the client-observed unavailability window is measured for each. The same measurement is taken across a rolling restart of every node, and across shard migration under continuous write load.</p>
+    <p class="metric"><b>Metric</b><br>Distribution of failover time (mean, p99, max); client error rate and unavailability window during migration and rolling restart.<br><b>Success</b><br>Failover bounded by the election timeout configuration in the overwhelming majority of cases, with every outlier explained.</p>
+  </div>
+
+  <div class="rq">
+    <div class="rq-head"><span class="rq-id">RQ5</span><span class="rq-q">Are leader-lease reads actually safe?</span></div>
+    <p>Lease-based reads are correct only under an assumption about clock drift. The simulator injects clock skew from zero upward, in both directions, and both read strategies are run against the same seeds and the same checker.</p>
+    <p class="metric"><b>Metric</b><br>Linearizability violation rate as a function of injected skew, for ReadIndex reads and lease reads.<br><b>Success</b><br>A measured skew threshold at which lease reads begin to violate linearizability, with ReadIndex clean at every skew tested.</p>
+  </div>
+
+  <p>RQ5 deserves a note on why it is in the plan. It is small, it is cheap, and it produces a result that is concrete, slightly surprising, and impossible to obtain any other way — which makes it the clearest single demonstration that the simulator earns its cost.</p>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section id="s8">
+  <h2><span class="num">08</span>Timeline and milestones</h2>
+  <p>Seven months, solo, alongside coursework. Each month carries an <strong>exit criterion</strong> — an objective, checkable condition, not a description of effort. A missed exit criterion is visible immediately and triggers the contingency in §9 rather than being absorbed silently into the next month.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th class="num">Month</th><th>Focus</th><th>Work</th><th>Exit criterion</th></tr></thead>
+      <tbody>
+        <tr>
+          <th class="num">1 &#183; Sep</th>
+          <td><strong>Harness before system</strong></td>
+          <td>Deterministic event loop; virtual clock; network and disk models; seeded RNG plumbing; the <code>Step</code> node interface; a trivial echo state machine running under simulation; CI double-run trace diff.</td>
+          <td>The same seed produces a byte-identical event trace across 100 runs and across two different machines.</td>
+        </tr>
+        <tr>
+          <th class="num">2 &#183; Oct</th>
+          <td>Consensus, part one</td>
+          <td>Leader election, log replication, durable state, the Figure&nbsp;8 commit restriction, basic client interface.</td>
+          <td>Independent suite passing through log-persistence tests; 10<sup>3</sup> simulated cluster-hours clean under crash and partition seeds.</td>
+        </tr>
+        <tr>
+          <th class="num">3 &#183; Nov</th>
+          <td>Consensus, part two</td>
+          <td>Snapshots and <code>InstallSnapshot</code>; single-server membership change; PreVote; term-based backtracking; batching and pipelining.</td>
+          <td>Full independent suite passing; 10<sup>4</sup> simulated cluster-hours clean; first entries in the bug catalogue.</td>
+        </tr>
+        <tr>
+          <th class="num">4 &#183; Dec</th>
+          <td>Key-value service</td>
+          <td>Replicated state machine; client sessions and exactly-once deduplication; ReadIndex and lease reads; gRPC transport; real five-node containerised deployment.</td>
+          <td>Porcupine-clean under simulation; real cluster survives <code>tc netem</code> partitions; RQ5 produces its first data point.</td>
+        </tr>
+        <tr>
+          <th class="num">5 &#183; Jan</th>
+          <td>Sharding</td>
+          <td>Shard controller Raft group; versioned shard map; online migration including deduplication-table transfer; rebalancing on group join and leave.</td>
+          <td>Migration under continuous write load with zero violations; a migration interrupted by leader failure on either side completes correctly.</td>
+        </tr>
+        <tr>
+          <th class="num">6 &#183; Feb</th>
+          <td>Measurement</td>
+          <td>Seed minimisation and swarm exploration; the RQ2 bug-injection study; etcd benchmarks; failover study; long soak runs across many seeds in parallel.</td>
+          <td>Complete result set collected; every thesis figure regenerated end-to-end from raw data by script.</td>
+        </tr>
+        <tr>
+          <th class="num">7 &#183; Mar</th>
+          <td>Write-up and defence</td>
+          <td>Thesis document; bug catalogue; demo rehearsal; buffer.</td>
+          <td>Submitted. <strong>This month contains no engineering</strong> — it is the schedule's shock absorber.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <span class="callout-label">The defence demonstration</span>
+    <p>A real bug from the catalogue is reproduced live from its seed in a few seconds, the failing history is shown with the violating operation highlighted by the checker, the one-line fix is applied, and the same seed is re-run clean. Reproducing a distributed-systems failure on demand, in front of an audience, is something most practising engineers cannot do — and it takes under two minutes.</p>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section id="s9">
+  <h2><span class="num">09</span>Risk register</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Risk</th><th>Lik.</th><th>Imp.</th><th>Mitigation and contingency</th></tr></thead>
+      <tbody>
+        <tr>
+          <th>Silent determinism leak</th>
+          <td><span class="chip hi">High</span></td>
+          <td><span class="chip hi">High</span></td>
+          <td>A single stray map iteration or wall-clock call destroys reproducibility without any test failing. Defended by the CI double-run trace diff from month one, a custom lint rule banning the offending calls, and sorted-key iteration throughout the deterministic path. <strong>Top risk in the project.</strong></td>
+        </tr>
+        <tr>
+          <th>Membership change edge cases</th>
+          <td><span class="chip md">Med</span></td>
+          <td><span class="chip hi">High</span></td>
+          <td>One-at-a-time change (Raft §4) rather than joint consensus. If still unresolved by the end of month 3, freeze cluster membership, ship without reconfiguration, and report it as a stated limitation — nothing downstream depends on it.</td>
+        </tr>
+        <tr>
+          <th>Shard migration slips</th>
+          <td><span class="chip md">Med</span></td>
+          <td><span class="chip md">Med</span></td>
+          <td>Fall back to static sharding assigned at startup. All five research questions remain answerable; only the online-migration result is lost.</td>
+        </tr>
+        <tr>
+          <th>etcd comparison not like-for-like</th>
+          <td><span class="chip md">Med</span></td>
+          <td><span class="chip lo">Low</span></td>
+          <td>etcd carries features Verity does not implement. Disable watch, auth, and TLS; document the exact configuration; report the comparison as indicative rather than competitive. RQ3 succeeds on explanation, not on winning.</td>
+        </tr>
+        <tr>
+          <th>Scope creep into transactions</th>
+          <td><span class="chip md">Med</span></td>
+          <td><span class="chip hi">High</span></td>
+          <td>Cross-shard transactions are an explicit non-goal in §4 and are re-read at each monthly checkpoint. The migration machinery makes them tempting; that is precisely why the boundary is written down in advance.</td>
+        </tr>
+        <tr>
+          <th>Solo developer unavailable</th>
+          <td><span class="chip lo">Low</span></td>
+          <td><span class="chip hi">High</span></td>
+          <td>Month 7 holds no engineering work and absorbs roughly four weeks of slippage. Monthly exit criteria surface a slip within weeks rather than at submission.</td>
+        </tr>
+        <tr>
+          <th>Benchmark hardware unavailable</th>
+          <td><span class="chip lo">Low</span></td>
+          <td><span class="chip lo">Low</span></td>
+          <td>A single machine running containers with <code>tc netem</code> is sufficient and is documented as the environment. Cloud VMs are an optional refinement, not a dependency.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section id="s10">
+  <h2><span class="num">10</span>Deliverables</h2>
+  <dl class="ids">
+    <div><dt>D1</dt><dd><strong>Source repository.</strong> Go module, permissively licensed, with the deterministic simulator published as a standalone package usable independently of Verity.</dd></div>
+    <div><dt>D2</dt><dd><strong>Bug catalogue.</strong> Every defect found during development, recorded with its seed, its class, its root cause, the fix commit, and an assessment of whether conventional testing would plausibly have found it. This is the project's most persuasive single document.</dd></div>
+    <div><dt>D3</dt><dd><strong>Experimental data and scripts.</strong> Raw results, seeds, and the scripts that regenerate every figure in the thesis from that raw data.</dd></div>
+    <div><dt>D4</dt><dd><strong>Thesis document.</strong> Background, design, implementation, evaluation, and threats to validity.</dd></div>
+    <div><dt>D5</dt><dd><strong>Defence demonstration.</strong> Live seed replay of a real failure, as described in §8.</dd></div>
+    <div><dt>D6</dt><dd><strong>Technical write-up</strong> for a general engineering audience, published publicly. Optional, and worth doing — this work is of interest well beyond the examination.</dd></div>
+  </dl>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section id="s11">
+  <h2><span class="num">11</span>Indicative reading list</h2>
+  <p>Starting points rather than a bibliography; the thesis will carry a full one.</p>
+  <ol class="refs">
+    <li>D. Ongaro and J. Ousterhout. <cite>In Search of an Understandable Consensus Algorithm</cite>. USENIX ATC, 2014. — the Raft paper.</li>
+    <li>D. Ongaro. <cite>Consensus: Bridging Theory and Practice</cite>. PhD dissertation, Stanford University, 2014. — membership change, PreVote, and the read optimisations, none of which are in the paper.</li>
+    <li>M. Herlihy and J. Wing. <cite>Linearizability: A Correctness Condition for Concurrent Objects</cite>. ACM TOPLAS, 1990. — the consistency model being checked.</li>
+    <li>J. Zhou et al. <cite>FoundationDB: A Distributed Unbundled Transactional Key Value Store</cite>. SIGMOD, 2021. — see the simulation testing section in particular.</li>
+    <li>K. Kingsbury and P. Alvaro. <cite>Elle: Inferring Isolation Anomalies from Experimental Observations</cite>. VLDB, 2020. — plus the Jepsen report archive as a catalogue of how real systems fail.</li>
+    <li>A. Groce et al. <cite>Swarm Testing</cite>. ISSTA, 2012. — the justification for randomising fault configuration per seed rather than fixing it.</li>
+    <li>A. Athalye. <cite>Porcupine</cite>: a fast linearizability checker for Go. — the external correctness oracle.</li>
+    <li>TigerBeetle's simulation testing engineering notes, and the etcd <code>raft</code> library source — the two clearest worked examples of the <code>Step</code>-based architecture Verity adopts.</li>
+    <li>MIT 6.5840, <cite>Distributed Systems</cite>. — lecture notes and the adversarial test suite used here as an independent oracle.</li>
+  </ol>
+</section>
+
+<div class="signoff">
+  <div class="sig"><div class="line"></div><span class="cap">Candidate</span></div>
+  <div class="sig"><div class="line"></div><span class="cap">Supervisor</span></div>
+  <div class="sig"><div class="line"></div><span class="cap">Date</span></div>
+</div>
+
+</main>
+</div>

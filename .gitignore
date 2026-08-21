@@ -1,0 +1,24 @@
+# Go build output
+/bin/
+*.exe
+*.exe~
+*.test
+*.prof
+*.out
+
+# Simulation traces: large, and regenerable from the seed alone.
+# Raw experimental results are NOT ignored — they are deliverable D3.
+/traces/
+*.trace
+
+# OMC operational state. .omc/skills is the intentional committable exception.
+.omc/
+!.omc/skills/
+!.omc/skills/**
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
